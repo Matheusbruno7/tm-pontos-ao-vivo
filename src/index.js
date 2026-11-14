@@ -1,11 +1,11 @@
 // CASQUINHA · pontos ao vivo
 // Worker (API pública) + Durable Object "Estado" (coleta a cada minuto e guarda os dados).
 import { DurableObject } from "cloudflare:workers";
-import { calcularTudo, normalizar, pesoDoEvento } from "./calculo.js";
+import { calcularTudo, identidade, normalizar, pesoDoEvento } from "./calculo.js";
 
 const CBTM = "https://live.cbtm.org.br/api/local/";
 const UA = "casquinha-ao-vivo/1.0 (pontos de rating; consulta a cada minuto durante eventos)";
-const VERSAO = "6"; // aumente quando mudar a regra de cálculo
+const VERSAO = "7"; // aumente quando mudar a regra de cálculo
 const MAX_CONSULTAS_POR_RODADA = 12;
 const CATALOGO_A_CADA_MIN = 30;
 
@@ -39,7 +39,8 @@ function enxugar(c) {
       kind: e.kind,
       members: (e.members || []).map((m) => ({ key: m.key, name: m.name, club: m.club, rating: m.rating })),
     })),
-    games: (c.games || []).filter((g) => g.finished).map((g) => ({
+    // jogos finalizados + jogos ainda por acontecer com os dois atletas já definidos
+    games: (c.games || []).filter((g) => g.finished || (!g.wo && g.first?.key && g.second?.key)).map((g) => ({
       key: g.key, number: g.number, day: g.day, time: g.time, finished: g.finished, wo: g.wo,
       category: g.category, phase: g.phase, group: g.group, table: g.table, sets: g.sets,
       first: { key: g.first?.key, name: g.first?.name, club: g.first?.club, won: g.first?.won, score: g.first?.score },
@@ -184,7 +185,8 @@ export class Estado extends DurableObject {
   recalcular() {
     const linhas = this.sql.exec("SELECT * FROM eventos WHERE consulta IS NOT NULL").toArray();
     const eventos = linhas.map((l) => ({ slug: l.slug, inicio: l.inicio, peso: l.peso, consulta: JSON.parse(l.consulta) }));
-    const { atletas, porEvento } = calcularTudo(eventos);
+    const { atletas, porEvento, ratingAtual } = calcularTudo(eventos);
+    this.setSaida("jogos_dia", this.jogosDoDia(linhas, eventos, porEvento, ratingAtual));
     const jogosPorEvento = new Map(porEvento.map((p) => [p.slug, p.jogos]));
 
     const lista = linhas.map((l) => ({
@@ -218,6 +220,44 @@ export class Estado extends DurableObject {
       atletas_com_jogos: atletas.size,
       jogos: lista.reduce((s, e) => s + e.jogos, 0),
     });
+  }
+
+  // Jogos de hoje nos eventos em andamento: os que ainda vão acontecer (com os
+  // dois atletas definidos e o rating ao vivo de cada um, para o site calcular a
+  // chance de vitória) e os já finalizados, para comparar previsão e resultado.
+  jogosDoDia(linhas, eventos, porEvento, ratingAtual) {
+    const hoje = new Date(Date.now() - 3 * 3600e3).toISOString().slice(0, 10);
+    const saida = { dia: hoje, eventos: [] };
+    const calculados = new Map(porEvento.map((p) => [p.slug, p.jogos]));
+    for (const l of linhas) {
+      if (!(l.inicio <= hoje && l.fim >= hoje)) continue;
+      const c = eventos.find((e) => e.slug === l.slug)?.consulta;
+      if (!c) continue;
+      const membros = new Map();
+      for (const e of c.entries || []) for (const m of e.members || []) membros.set(m.key, m);
+      const lado = (p) => {
+        const m = membros.get(p.key) || {};
+        const nome = m.name || p.name, clube = m.club || p.club;
+        const r = ratingAtual.get(identidade(nome, m.rating, clube)) ?? m.rating;
+        return r ? { nome: normalizar(nome), clube, rating: r } : null;
+      };
+      const proximos = [];
+      for (const g of c.games || []) {
+        if (g.finished || g.wo || (g.day && g.day < hoje)) continue;
+        const a = lado(g.first), b = lado(g.second);
+        if (!a || !b) continue;
+        proximos.push({ id: g.key, dia: g.day || hoje, hora: g.time || "", mesa: g.table || "", categoria: g.category, fase: g.phase, grupo: (g.group || "").trim(), a, b });
+      }
+      proximos.sort((x, y) => `${x.dia} ${x.hora}`.localeCompare(`${y.dia} ${y.hora}`) || x.mesa.localeCompare(y.mesa, "pt-BR", { numeric: true }));
+      const finalizados = (calculados.get(l.slug) || []).filter((j) => j.dia === hoje).map((j) => ({
+        id: j.id, hora: j.hora, mesa: j.mesa, categoria: j.categoria, fase: j.fase,
+        a: { nome: j.a.nome, clube: j.a.clube, rating: j.a.antes, venceu: j.a.venceu, placar: j.a.placar, pontos: j.a.pontos },
+        b: { nome: j.b.nome, clube: j.b.clube, rating: j.b.antes, venceu: j.b.venceu, placar: j.b.placar, pontos: j.b.pontos },
+      })).reverse();
+      if (proximos.length || finalizados.length)
+        saida.eventos.push({ slug: l.slug, nome: l.nome, cidade: l.cidade, uf: l.uf, peso: l.peso, tipo: l.tipo, proximos, finalizados });
+    }
+    return saida;
   }
 
   // Destaques de cada dia (últimos 10 dias com jogos): quem mais ganhou e perdeu
@@ -268,6 +308,7 @@ export class Estado extends DurableObject {
       r.recalculado_em = +this.cfg("recalculado_em", 0) || null;
       return json(r);
     }
+    if (p === "/api/jogos-do-dia") return json(this.saida("jogos_dia") || { eventos: [] });
     if (p === "/api/destaques") {
       const dias = this.saida("dias") || {};
       const lista = Object.keys(dias).sort();
@@ -308,7 +349,9 @@ export class Estado extends DurableObject {
             const ele = j.a.chave === id ? j.b : j.a;
             jogos.push({ evento: ev.evento.nome, slug, dia: j.dia, hora: j.hora, categoria: j.categoria, fase: j.fase,
               adversario: ele.nome, clube_adversario: ele.clube, rating_adversario: ele.antes, clube: eu.clube,
-              antes: eu.antes, pontos: eu.pontos, venceu: eu.venceu, placar: `${eu.placar} × ${ele.placar}`, sets: j.sets, peso: ev.evento.peso });
+              antes: eu.antes, pontos: eu.pontos, venceu: eu.venceu, placar: `${eu.placar} × ${ele.placar}`, peso: ev.evento.peso,
+              // sets do ponto de vista do atleta: [pontos dele, pontos do adversário]
+              sets: (j.sets || []).map((x) => (j.a.chave === id ? x : [x[1], x[0]])) });
           }
         }
       }
@@ -322,7 +365,7 @@ export default {
   async fetch(req, env, ctx) {
     if (req.method === "OPTIONS") return new Response(null, { headers: { "access-control-allow-origin": "*", "access-control-allow-methods": "GET" } });
     const url = new URL(req.url);
-    if (url.pathname === "/" ) return json({ servico: "CASQUINHA · pontos ao vivo", rotas: ["/api/resumo", "/api/destaques?dia=AAAA-MM-DD", "/api/saldos", "/api/evento/{slug}", "/api/atletas?q=", "/api/atleta/{chave}"] });
+    if (url.pathname === "/" ) return json({ servico: "CASQUINHA · pontos ao vivo", rotas: ["/api/jogos-do-dia", "/api/resumo", "/api/destaques?dia=AAAA-MM-DD", "/api/saldos", "/api/evento/{slug}", "/api/atletas?q=", "/api/atleta/{chave}"] });
     if (!url.pathname.startsWith("/api/")) return json({ erro: "rota não encontrada" }, 404);
     // cache de 30 s na borda: protege a CBTM e o Durable Object de acessos repetidos
     const cache = caches.default;

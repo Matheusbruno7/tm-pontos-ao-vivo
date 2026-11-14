@@ -144,7 +144,7 @@ export function calcularTudo(eventos) {
     at.saldo = at.atual - at.oficial;
   }
   marcarJaOficiais(atletas, ordenados);
-  return { atletas, porEvento };
+  return { atletas, porEvento, ratingAtual };
 }
 
 /**
