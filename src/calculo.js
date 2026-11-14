@@ -34,6 +34,15 @@ export const normalizar = (s) =>
 
 export const chaveAtleta = (nome, clube) => `${normalizar(nome)}|${normalizar(clube)}`;
 
+/**
+ * Identidade do atleta entre eventos: nome + rating oficial de entrada.
+ * O clube NÃO entra: o atleta pode jogar por clubes diferentes no ano (transferência),
+ * e cada inscrição mostra o clube daquele evento. Até a CBTM publicar o próximo
+ * rating, o rating de entrada é o mesmo em todas as inscrições.
+ */
+export const identidade = (nome, ratingEntrada, clube) =>
+  ratingEntrada ? `${normalizar(nome)}#${ratingEntrada}` : chaveAtleta(nome, clube);
+
 export function pesoDoEvento(nome) {
   const n = normalizar(nome);
   for (const [re, peso, tipo] of PESOS) if (re.test(n)) return { peso, tipo, estimado: false };
@@ -75,9 +84,9 @@ export function processarEvento(consulta, peso, ratingAtual) {
       const m = membros.get(p.key) || {};
       const nome = m.name || p.name;
       const clube = m.club || p.club;
-      const chave = chaveAtleta(nome, clube);
+      const chave = identidade(nome, m.rating, clube);
       if (!ratingAtual.has(chave) && m.rating) ratingAtual.set(chave, m.rating);
-      return { chave, nome: normalizar(nome), clube, rating: ratingAtual.get(chave) };
+      return { chave, alias: chaveAtleta(nome, clube), nome: normalizar(nome), clube, rating: ratingAtual.get(chave) };
     });
     if (lados.some((l) => !l.rating)) continue; // sem rating de entrada: não dá para calcular
     const [a, b] = lados;
@@ -93,8 +102,8 @@ export function processarEvento(consulta, peso, ratingAtual) {
       hora: g.time,
       mesa: g.table,
       sets: g.sets,
-      a: { chave: a.chave, nome: a.nome, clube: a.clube, antes: a.rating, pontos: pa, venceu: !!g.first.won, placar: g.first.score },
-      b: { chave: b.chave, nome: b.nome, clube: b.clube, antes: b.rating, pontos: pb, venceu: !!g.second.won, placar: g.second.score },
+      a: { chave: a.chave, alias: a.alias, nome: a.nome, clube: a.clube, antes: a.rating, pontos: pa, venceu: !!g.first.won, placar: g.first.score },
+      b: { chave: b.chave, alias: b.alias, nome: b.nome, clube: b.clube, antes: b.rating, pontos: pb, venceu: !!g.second.won, placar: g.second.score },
     });
   }
   return saida;
@@ -114,16 +123,18 @@ export function calcularTudo(eventos) {
     // o rating de entrada da 1ª aparição é o oficial
     for (const e of ev.consulta.entries || [])
       for (const m of e.members || []) {
-        const k = chaveAtleta(m.name, m.club);
+        const k = identidade(m.name, m.rating, m.club);
         if (m.rating && !ratingOficial.has(k)) ratingOficial.set(k, m.rating);
       }
     const jogos = processarEvento(ev.consulta, ev.peso, ratingAtual);
     porEvento.push({ slug: ev.slug, jogos });
     for (const j of jogos)
       for (const lado of [j.a, j.b]) {
-        const at = atletas.get(lado.chave) || { nome: lado.nome, clube: lado.clube, oficial: ratingOficial.get(lado.chave) ?? lado.antes, jogos: 0, vitorias: 0, eventos: [] };
+        const at = atletas.get(lado.chave) || { nome: lado.nome, clube: lado.clube, clubes: [], oficial: ratingOficial.get(lado.chave) ?? lado.antes, jogos: 0, vitorias: 0, eventos: [] };
         at.jogos += 1;
         if (lado.venceu) at.vitorias += 1;
+        at.clube = lado.clube; // clube do evento mais recente
+        if (!at.clubes.includes(lado.alias)) at.clubes.push(lado.alias);
         if (at.eventos[at.eventos.length - 1] !== ev.slug) at.eventos.push(ev.slug);
         atletas.set(lado.chave, at);
       }
@@ -132,5 +143,38 @@ export function calcularTudo(eventos) {
     at.atual = ratingAtual.get(k);
     at.saldo = at.atual - at.oficial;
   }
+  marcarJaOficiais(atletas, ordenados);
   return { atletas, porEvento };
+}
+
+/**
+ * A CBTM às vezes computa um evento para alguns atletas antes da atualização
+ * geral. Sinal disso: a mesma pessoa (nome + clube) aparece num evento POSTERIOR
+ * com OUTRO rating de entrada. Nesse caso, os eventos anteriores dela já estão
+ * no oficial e não entram no saldo (senão seriam contados duas vezes).
+ * Homônimos não são confundidos: aparecem juntos num mesmo evento.
+ */
+export function marcarJaOficiais(atletas, eventosOrdenados) {
+  const inicio = new Map(eventosOrdenados.map((e) => [e.slug, e.inicio]));
+  const porAlias = new Map();
+  for (const [k, at] of atletas)
+    for (const alias of at.clubes) {
+      if (!porAlias.has(alias)) porAlias.set(alias, []);
+      porAlias.get(alias).push(k);
+    }
+  for (const ids of porAlias.values()) {
+    if (ids.length < 2) continue;
+    for (const a of ids)
+      for (const b of ids) {
+        if (a === b) continue;
+        const A = atletas.get(a), B = atletas.get(b);
+        const juntos = A.eventos.some((e) => B.eventos.includes(e));
+        const ultimoA = Math.max(...A.eventos.map((e) => Date.parse(inicio.get(e))));
+        const primeiroB = Math.min(...B.eventos.map((e) => Date.parse(inicio.get(e))));
+        if (!juntos && ultimoA < primeiroB) {
+          A.jaOficial = true; // B tem o rating mais novo: A já foi computado pela CBTM
+          A.saldo = 0;
+        }
+      }
+  }
 }

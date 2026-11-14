@@ -5,7 +5,7 @@ import { calcularTudo, normalizar, pesoDoEvento } from "./calculo.js";
 
 const CBTM = "https://live.cbtm.org.br/api/local/";
 const UA = "casquinha-ao-vivo/1.0 (pontos de rating; consulta a cada minuto durante eventos)";
-const VERSAO = "4"; // aumente quando mudar a regra de cálculo
+const VERSAO = "6"; // aumente quando mudar a regra de cálculo
 const MAX_CONSULTAS_POR_RODADA = 12;
 const CATALOGO_A_CADA_MIN = 30;
 
@@ -197,8 +197,18 @@ export class Estado extends DurableObject {
     const atl = {};
     for (const [k, a] of atletas) atl[k] = a;
     this.setSaida("atletas", atl);
+    // Saldos por "NOME|CLUBE" para cada clube em que o atleta jogou (ele pode ter
+    // trocado de clube) e por nome, quando o nome é de uma pessoa só.
     const saldos = {};
-    for (const [k, a] of atletas) if (a.saldo) saldos[k] = a.saldo;
+    const porNome = new Map();
+    for (const a of atletas.values()) if (!a.jaOficial) porNome.set(a.nome, (porNome.get(a.nome) || 0) + 1);
+    const saldosPorNome = {};
+    for (const a of atletas.values()) {
+      if (!a.saldo) continue;
+      for (const alias of a.clubes) saldos[alias] = (saldos[alias] || 0) + a.saldo;
+      if (porNome.get(a.nome) === 1) saldosPorNome[a.nome] = a.saldo;
+    }
+    this.setSaida("saldos_por_nome", saldosPorNome);
     this.setSaida("saldos", saldos);
     this.setSaida("dias", this.destaquesPorDia(porEvento, new Map(linhas.map((l) => [l.slug, l]))));
     this.setCfg("recalculado_em", Date.now());
@@ -222,14 +232,16 @@ export class Estado extends DurableObject {
         d.jogos++;
         d.eventos.add(slug);
         for (const l of [j.a, j.b]) {
-          const at = d.atletas.get(l.chave) || { chave: l.chave, nome: l.nome, clube: l.clube, pontos: 0, jogos: 0, vitorias: 0, rating_inicio: l.antes, evento: ev?.nome || "" };
+          const at = d.atletas.get(l.chave) || { chave: l.alias, nome: l.nome, clube: l.clube, pontos: 0, jogos: 0, vitorias: 0, rating_inicio: l.antes, evento: ev?.nome || "" };
           at.pontos += l.pontos;
+          at.clube = l.clube;
+          at.chave = l.alias;
           at.jogos++;
           if (l.venceu) at.vitorias++;
           d.atletas.set(l.chave, at);
         }
         const [v, p] = j.a.venceu ? [j.a, j.b] : [j.b, j.a];
-        if (v.antes < p.antes) d.zebras.push({ vencedor: v.nome, clube_vencedor: v.clube, chave_vencedor: v.chave, rating_vencedor: v.antes, perdedor: p.nome, rating_perdedor: p.antes, diferenca: p.antes - v.antes, pontos: v.pontos, categoria: j.categoria, fase: j.fase, evento: ev?.nome || "", hora: j.hora });
+        if (v.antes < p.antes) d.zebras.push({ vencedor: v.nome, clube_vencedor: v.clube, chave_vencedor: v.alias, rating_vencedor: v.antes, perdedor: p.nome, rating_perdedor: p.antes, diferenca: p.antes - v.antes, pontos: v.pontos, categoria: j.categoria, fase: j.fase, evento: ev?.nome || "", hora: j.hora });
       }
     }
     const saida = {};
@@ -262,7 +274,7 @@ export class Estado extends DurableObject {
       const dia = url.searchParams.get("dia") && dias[url.searchParams.get("dia")] ? url.searchParams.get("dia") : lista.at(-1);
       return json({ dia: dia || null, dias: lista, ...(dias[dia] || {}) });
     }
-    if (p === "/api/saldos") return json({ oficial_ate: this.oficialAte(), saldos: this.saida("saldos") || {} });
+    if (p === "/api/saldos") return json({ oficial_ate: this.oficialAte(), saldos: this.saida("saldos") || {}, por_nome: this.saida("saldos_por_nome") || {} });
     if (p.startsWith("/api/evento/")) {
       const d = this.saida(`ev:${decodeURIComponent(p.slice(12))}`);
       return d ? json(d) : json({ erro: "evento não encontrado" }, 404);
@@ -270,28 +282,37 @@ export class Estado extends DurableObject {
     if (p === "/api/atletas") {
       const q = normalizar(url.searchParams.get("q") || "");
       const atl = this.saida("atletas") || {};
-      const r = Object.entries(atl).filter(([k]) => q.length >= 2 && k.includes(q)).slice(0, 30)
-        .map(([chave, a]) => ({ chave, nome: a.nome, clube: a.clube, oficial: a.oficial, atual: a.atual, saldo: a.saldo, jogos: a.jogos }));
+      const r = Object.entries(atl).filter(([, a]) => !a.jaOficial && q.length >= 2 && (a.nome.includes(q) || a.clubes.some((c) => c.includes(q)))).slice(0, 30)
+        .map(([, a]) => ({ chave: a.clubes.at(-1), nome: a.nome, clube: a.clube, clubes: a.clubes.length, oficial: a.oficial, atual: a.atual, saldo: a.saldo, jogos: a.jogos }));
       return json({ itens: r });
     }
     if (p.startsWith("/api/atleta/")) {
-      const chave = decodeURIComponent(p.slice(12));
-      const a = (this.saida("atletas") || {})[chave];
+      // aceita a identidade interna (NOME#RATING) ou "NOME|CLUBE" de qualquer clube em que ele jogou
+      const pedido = decodeURIComponent(p.slice(12));
+      const atl = this.saida("atletas") || {};
+      const candidatos = Object.keys(atl).filter((k) => atl[k].clubes.includes(pedido));
+      let id = atl[pedido] ? pedido : candidatos.find((k) => !atl[k].jaOficial) || candidatos[0];
+      if (!id) {
+        const nome = pedido.split("|")[0];
+        const mesmos = Object.keys(atl).filter((k) => atl[k].nome === nome && !atl[k].jaOficial);
+        if (mesmos.length === 1) id = mesmos[0];
+      }
+      const a = id && atl[id];
       if (!a) return json({ erro: "atleta sem jogos pendentes de publicação oficial" }, 404);
       const jogos = [];
       for (const slug of a.eventos) {
         const ev = this.saida(`ev:${slug}`);
         for (const j of ev?.jogos || []) {
-          if (j.a.chave === chave || j.b.chave === chave) {
-            const eu = j.a.chave === chave ? j.a : j.b;
-            const ele = j.a.chave === chave ? j.b : j.a;
+          if (j.a.chave === id || j.b.chave === id) {
+            const eu = j.a.chave === id ? j.a : j.b;
+            const ele = j.a.chave === id ? j.b : j.a;
             jogos.push({ evento: ev.evento.nome, slug, dia: j.dia, hora: j.hora, categoria: j.categoria, fase: j.fase,
-              adversario: ele.nome, clube_adversario: ele.clube, rating_adversario: ele.antes,
+              adversario: ele.nome, clube_adversario: ele.clube, rating_adversario: ele.antes, clube: eu.clube,
               antes: eu.antes, pontos: eu.pontos, venceu: eu.venceu, placar: `${eu.placar} × ${ele.placar}`, sets: j.sets, peso: ev.evento.peso });
           }
         }
       }
-      return json({ chave, ...a, jogos });
+      return json({ chave: a.clubes.at(-1), id, ...a, jogos });
     }
     return json({ erro: "rota não encontrada" }, 404);
   }

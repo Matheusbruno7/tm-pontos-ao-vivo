@@ -37,6 +37,15 @@ partir dos perfis oficiais batem 100% (`test/gabarito_chapeco_2026.json`).
 - O rating de entrada de cada atleta vem da inscrição no evento (rating oficial).
 - Os eventos ainda não publicados são encadeados em ordem cronológica.
 - W.O. não conta. Duplas e equipes ficam de fora nesta versão.
+- **Identidade do atleta = nome + rating oficial de entrada** (não o clube). O
+  atleta pode jogar por clubes diferentes no ano, e cada inscrição mostra o
+  clube daquele evento. Os saldos saem para todos os clubes em que ele jogou e
+  também pelo nome (quando o nome é de uma pessoa só), para chegar ao clube
+  atual na projeção do Ranking de Clubes.
+- **Eventos já computados pela CBTM para um atleta:** se a mesma pessoa aparece
+  num evento posterior com outro rating de entrada, os eventos anteriores dela
+  já estão no oficial e saem do saldo (evita contar duas vezes). Homônimos não
+  se confundem: aparecem juntos num mesmo evento.
 - O corte ("rating oficial até") vem do `tm-clubes`, que verifica toda segunda
   até que data a CBTM já computou os jogos.
 

@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { calcularTudo, chaveAtleta, pesoDoEvento, pontosDoJogo, processarEvento } from "../src/calculo.js";
+import { calcularTudo, chaveAtleta, identidade, pesoDoEvento, pontosDoJogo, processarEvento } from "../src/calculo.js";
 
 const gabarito = JSON.parse(readFileSync(new URL("./gabarito_chapeco_2026.json", import.meta.url)));
 
@@ -56,7 +56,7 @@ test("jogo a jogo: o rating é atualizado antes do jogo seguinte e W.O. não con
   assert.equal(j[0].id, "g1"); // ordenado por horário
   assert.deepEqual([j[0].a.antes, j[0].a.pontos], [1500, 30]); // Δ 10, esperada: 10 × 3
   assert.deepEqual([j[1].a.antes, j[1].b.antes], [1530, 1466]); // Δ 64 no 2º jogo
-  assert.equal(r.get(chaveAtleta("ANA SILVA", "CLUBE X - SC")), 1530 - 33); // perdeu inesperada: 11 × 3
+  assert.equal(r.get(identidade("ANA SILVA", 1500)), 1530 - 33); // perdeu inesperada: 11 × 3
 });
 
 test("encadeia eventos e calcula o saldo sobre o oficial", () => {
@@ -64,10 +64,66 @@ test("encadeia eventos e calcula o saldo sobre o oficial", () => {
     { slug: "e2", inicio: "2026-11-14", peso: 3, consulta: consulta([jogo(1, "09:00", true)]) },
     { slug: "e1", inicio: "2026-11-07", peso: 3, consulta: consulta([jogo(1, "09:00", true)]) },
   ]);
-  const ana = atletas.get(chaveAtleta("ANA SILVA", "CLUBE X - SC"));
+  const ana = atletas.get(identidade("ANA SILVA", 1500));
   assert.equal(ana.oficial, 1500);
   // 1º evento: Δ 10, esperada, +30 (BIA −24 → 1466). 2º evento: Δ 64, esperada, +24.
   assert.equal(ana.atual, 1500 + 30 + 24);
   assert.equal(ana.saldo, 54);
   assert.deepEqual(ana.eventos, ["e1", "e2"]);
+});
+
+test("atleta que troca de clube entre eventos continua sendo a mesma pessoa", () => {
+  const ev = (clubeAna, n) => ({
+    entries: [
+      { kind: "individual", members: [{ key: "a", name: "ANA SILVA", club: clubeAna, rating: 1500 }] },
+      { kind: "individual", members: [{ key: "b", name: "BIA SOUZA", club: "CLUBE Y - SC", rating: 1490 }] },
+    ],
+    games: [{ ...jogo(n, "09:00", true), first: { key: "a", name: "ANA SILVA", club: clubeAna, won: true, score: 3 } }],
+  });
+  const { atletas } = calcularTudo([
+    { slug: "e1", inicio: "2026-11-07", peso: 3, consulta: ev("CLUBE ANTIGO - SC", 1) },
+    { slug: "e2", inicio: "2026-11-14", peso: 3, consulta: ev("CLUBE NOVO - PR", 1) },
+  ]);
+  const ana = atletas.get(identidade("ANA SILVA", 1500));
+  assert.equal(ana.jogos, 2); // os dois eventos somam no mesmo atleta
+  assert.equal(ana.atual, 1500 + 30 + 24); // o 2º evento parte do rating já atualizado
+  assert.equal(ana.clube, "CLUBE NOVO - PR");
+  assert.deepEqual(ana.clubes, [chaveAtleta("ANA SILVA", "CLUBE ANTIGO - SC"), chaveAtleta("ANA SILVA", "CLUBE NOVO - PR")]);
+});
+
+test("evento já computado pela CBTM para o atleta não entra no saldo (rating de entrada mudou)", () => {
+  const ev = (rating, n) => ({
+    entries: [
+      { kind: "individual", members: [{ key: "a", name: "ANA SILVA", club: "CLUBE X - SC", rating }] },
+      { kind: "individual", members: [{ key: "b", name: "BIA SOUZA", club: "CLUBE Y - SC", rating: 1490 }] },
+    ],
+    games: [jogo(n, "09:00", true)],
+  });
+  const { atletas } = calcularTudo([
+    { slug: "e1", inicio: "2026-10-18", peso: 3, consulta: ev(1500, 1) }, // já no oficial: o rating dela virou 1530
+    { slug: "e2", inicio: "2026-11-08", peso: 3, consulta: ev(1530, 1) },
+  ]);
+  const antiga = atletas.get(identidade("ANA SILVA", 1500));
+  const nova = atletas.get(identidade("ANA SILVA", 1530));
+  assert.equal(antiga.jaOficial, true);
+  assert.equal(antiga.saldo, 0);
+  assert.equal(nova.oficial, 1530);
+  assert.ok(nova.saldo > 0 && !nova.jaOficial);
+});
+
+test("homônimos no mesmo evento continuam separados e os dois contam", () => {
+  const c = {
+    entries: [
+      { kind: "individual", members: [{ key: "a1", name: "JOAO CASTRO", club: "CLUBE X - SC", rating: 900 }] },
+      { kind: "individual", members: [{ key: "a2", name: "JOAO CASTRO", club: "CLUBE X - SC", rating: 250 }] },
+      { kind: "individual", members: [{ key: "b", name: "BIA SOUZA", club: "CLUBE Y - SC", rating: 600 }] },
+    ],
+    games: [
+      { ...jogo(1, "09:00", true), first: { key: "a1", name: "JOAO CASTRO", club: "CLUBE X - SC", won: true, score: 3 } },
+      { ...jogo(2, "10:00", true), first: { key: "a2", name: "JOAO CASTRO", club: "CLUBE X - SC", won: true, score: 3 } },
+    ],
+  };
+  const { atletas } = calcularTudo([{ slug: "e1", inicio: "2026-11-14", peso: 3, consulta: c }]);
+  assert.ok(atletas.get(identidade("JOAO CASTRO", 900)).saldo > 0);
+  assert.ok(atletas.get(identidade("JOAO CASTRO", 250)).saldo > 0);
 });
