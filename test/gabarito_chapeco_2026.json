@@ -1,0 +1,427 @@
+{
+"evento": "TMB ESTADUAL - 5ª ETAPA ESTADUAL CATARINENSE 2026 - CHAPECÓ",
+"peso": 3,
+"fonte": "perfis oficiais de rating da CBTM (pares de atletas que se enfrentaram)",
+"jogos": [
+{
+"ra": 4324,
+"rb": 3601,
+"aVenceu": true,
+"pa": 6,
+"pb": 0
+},
+{
+"ra": 4312,
+"rb": 3980,
+"aVenceu": true,
+"pa": 12,
+"pb": -6
+},
+{
+"ra": 4363,
+"rb": 3880,
+"aVenceu": false,
+"pa": -60,
+"pb": 78
+},
+{
+"ra": 4357,
+"rb": 3638,
+"aVenceu": true,
+"pa": 6,
+"pb": 0
+},
+{
+"ra": 4354,
+"rb": 2961,
+"aVenceu": true,
+"pa": 3,
+"pb": 0
+},
+{
+"ra": 4088,
+"rb": 3714,
+"aVenceu": false,
+"pa": -54,
+"pb": 69
+},
+{
+"ra": 4085,
+"rb": 3157,
+"aVenceu": true,
+"pa": 3,
+"pb": 0
+},
+{
+"ra": 4082,
+"rb": 2939,
+"aVenceu": true,
+"pa": 3,
+"pb": 0
+},
+{
+"ra": 4070,
+"rb": 3711,
+"aVenceu": true,
+"pa": 12,
+"pb": -6
+},
+{
+"ra": 4064,
+"rb": 3547,
+"aVenceu": true,
+"pa": 6,
+"pb": 0
+},
+{
+"ra": 4061,
+"rb": 3287,
+"aVenceu": true,
+"pa": 3,
+"pb": 0
+},
+{
+"ra": 4058,
+"rb": 2939,
+"aVenceu": true,
+"pa": 3,
+"pb": 0
+},
+{
+"ra": 4001,
+"rb": 3958,
+"aVenceu": false,
+"pa": -30,
+"pb": 36
+},
+{
+"ra": 3995,
+"rb": 3439,
+"aVenceu": true,
+"pa": 6,
+"pb": 0
+},
+{
+"ra": 3980,
+"rb": 3768,
+"aVenceu": true,
+"pa": 15,
+"pb": -9
+},
+{
+"ra": 3977,
+"rb": 3042,
+"aVenceu": true,
+"pa": 3,
+"pb": 0
+},
+{
+"ra": 4003,
+"rb": 3323,
+"aVenceu": false,
+"pa": -66,
+"pb": 90
+},
+{
+"ra": 4000,
+"rb": 2979,
+"aVenceu": true,
+"pa": 3,
+"pb": 0
+},
+{
+"ra": 3874,
+"rb": 3349,
+"aVenceu": true,
+"pa": 6,
+"pb": 0
+},
+{
+"ra": 3871,
+"rb": 3005,
+"aVenceu": true,
+"pa": 3,
+"pb": 0
+},
+{
+"ra": 3711,
+"rb": 2939,
+"aVenceu": true,
+"pa": 3,
+"pb": 0
+},
+{
+"ra": 3705,
+"rb": 3157,
+"aVenceu": true,
+"pa": 6,
+"pb": 0
+},
+{
+"ra": 3705,
+"rb": 3157,
+"aVenceu": true,
+"pa": 6,
+"pb": 0
+},
+{
+"ra": 3702,
+"rb": 2876,
+"aVenceu": true,
+"pa": 3,
+"pb": 0
+},
+{
+"ra": 3765,
+"rb": 2793,
+"aVenceu": false,
+"pa": -66,
+"pb": 90
+},
+{
+"ra": 3762,
+"rb": 2661,
+"aVenceu": true,
+"pa": 3,
+"pb": 0
+},
+{
+"ra": 3765,
+"rb": 2929,
+"aVenceu": true,
+"pa": 3,
+"pb": 0
+},
+{
+"ra": 3650,
+"rb": 3400,
+"aVenceu": false,
+"pa": -48,
+"pb": 60
+},
+{
+"ra": 3644,
+"rb": 2967,
+"aVenceu": true,
+"pa": 6,
+"pb": 0
+},
+{
+"ra": 3626,
+"rb": 3251,
+"aVenceu": true,
+"pa": 12,
+"pb": -6
+},
+{
+"ra": 3598,
+"rb": 2816,
+"aVenceu": true,
+"pa": 3,
+"pb": 0
+},
+{
+"ra": 3637,
+"rb": 3343,
+"aVenceu": false,
+"pa": -48,
+"pb": 60
+},
+{
+"ra": 3556,
+"rb": 3078,
+"aVenceu": true,
+"pa": 9,
+"pb": -3
+},
+{
+"ra": 3538,
+"rb": 3069,
+"aVenceu": true,
+"pa": 9,
+"pb": -3
+},
+{
+"ra": 3506,
+"rb": 3361,
+"aVenceu": true,
+"pa": 21,
+"pb": -15
+},
+{
+"ra": 3500,
+"rb": 2881,
+"aVenceu": true,
+"pa": 6,
+"pb": 0
+},
+{
+"ra": 3539,
+"rb": 3289,
+"aVenceu": false,
+"pa": -48,
+"pb": 60
+},
+{
+"ra": 3413,
+"rb": 3462,
+"aVenceu": true,
+"pa": 36,
+"pb": -30
+},
+{
+"ra": 3302,
+"rb": 3178,
+"aVenceu": true,
+"pa": 21,
+"pb": -15
+},
+{
+"ra": 3248,
+"rb": 3442,
+"aVenceu": true,
+"pa": 54,
+"pb": -42
+},
+{
+"ra": 3456,
+"rb": 2883,
+"aVenceu": true,
+"pa": 6,
+"pb": 0
+},
+{
+"ra": 3420,
+"rb": 3460,
+"aVenceu": true,
+"pa": 36,
+"pb": -30
+},
+{
+"ra": 3405,
+"rb": 3181,
+"aVenceu": true,
+"pa": 15,
+"pb": -9
+},
+{
+"ra": 3432,
+"rb": 3403,
+"aVenceu": false,
+"pa": -30,
+"pb": 36
+},
+{
+"ra": 3426,
+"rb": 2835,
+"aVenceu": true,
+"pa": 6,
+"pb": 0
+},
+{
+"ra": 3358,
+"rb": 2579,
+"aVenceu": true,
+"pa": 3,
+"pb": 0
+},
+{
+"ra": 3277,
+"rb": 2891,
+"aVenceu": true,
+"pa": 12,
+"pb": -6
+},
+{
+"ra": 3204,
+"rb": 2947,
+"aVenceu": true,
+"pa": 15,
+"pb": -9
+},
+{
+"ra": 3243,
+"rb": 2982,
+"aVenceu": false,
+"pa": -48,
+"pb": 60
+},
+{
+"ra": 3157,
+"rb": 2939,
+"aVenceu": true,
+"pa": 15,
+"pb": -9
+},
+{
+"ra": 3172,
+"rb": 2618,
+"aVenceu": true,
+"pa": 6,
+"pb": 0
+},
+{
+"ra": 2967,
+"rb": 2661,
+"aVenceu": true,
+"pa": 12,
+"pb": -6
+},
+{
+"ra": 2934,
+"rb": 2893,
+"aVenceu": true,
+"pa": 27,
+"pb": -21
+},
+{
+"ra": 2838,
+"rb": 2558,
+"aVenceu": false,
+"pa": -48,
+"pb": 60
+},
+{
+"ra": 2780,
+"rb": 2576,
+"aVenceu": true,
+"pa": 15,
+"pb": -9
+},
+{
+"ra": 2765,
+"rb": 2564,
+"aVenceu": true,
+"pa": 15,
+"pb": -9
+},
+{
+"ra": 2822,
+"rb": 2653,
+"aVenceu": false,
+"pa": -42,
+"pb": 54
+},
+{
+"ra": 2686,
+"rb": 2522,
+"aVenceu": false,
+"pa": -42,
+"pb": 54
+},
+{
+"ra": 2653,
+"rb": 2657,
+"aVenceu": true,
+"pa": 33,
+"pb": -27
+},
+{
+"ra": 2611,
+"rb": 2691,
+"aVenceu": true,
+"pa": 42,
+"pb": -33
+}
+]
+}

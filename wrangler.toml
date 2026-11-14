@@ -1,0 +1,21 @@
+name = "casquinha-ao-vivo"
+main = "src/index.js"
+compatibility_date = "2026-10-01"
+workers_dev = true
+
+[triggers]
+crons = ["* * * * *"]
+
+[vars]
+# Último dia de jogos que o rating oficial da CBTM já inclui. O worker atualiza
+# este valor sozinho a partir dos dados publicados pelo tm-clubes.
+OFICIAL_ATE = "2026-09-27"
+HUB_DADOS = "https://matheusbruno7.github.io/tm-hub/dados/"
+
+[[durable_objects.bindings]]
+name = "ESTADO"
+class_name = "Estado"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["Estado"]
