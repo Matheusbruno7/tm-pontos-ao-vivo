@@ -19,11 +19,13 @@ export const INESPERADAS = [
 // Uma seletiva realizada dentro de outro evento usa o peso desse evento (Manual,
 // observação do item 1.7.2.3), por isso "SELETIVA" só vale 12 se nada antes casar.
 export const PESOS = [
-  [/BRASILEIR/, 18, "Brasileirão"],
-  [/COPA BRASIL.*OURO|\bOURO\b/, 9, "Copa Brasil Ouro"],
-  [/COPA BRASIL.*PRATA|\bPRATA\b/, 6, "Copa Brasil Prata"],
+  [/BRASILEIRAO/, 18, "Brasileirão"],
+  [/COPA BRASIL.*OURO|OURO.*COPA BRASIL/, 9, "Copa Brasil Ouro"],
+  [/COPA BRASIL.*PRATA|PRATA.*COPA BRASIL/, 6, "Copa Brasil Prata"],
+  // "SÉRIE OURO/PRATA" de um estadual continua sendo estadual
   [/ESTADUAL|DISTRITAL|PAULISTAO|CAMPEONATO (CEARENSE|MINEIRO|PARAENSE|CATARINENSE|GAUCHO|PARANAENSE|AMAPAENSE)/, 3, "Estadual"],
   [/SELETIVA/, 12, "Seletiva Nacional"],
+  // "Liga Nipo Brasileira" é regional (por isso Brasileirão exige "BRASILEIRAO")
   [/REGIONAL|LIGA|COPA MG/, 1, "Regional"],
 ];
 

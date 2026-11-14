@@ -28,6 +28,10 @@ test("pesos dos eventos (Manual 2026)", () => {
   assert.equal(pesoDoEvento("Open Ping Drive").estimado, true);
   assert.equal(pesoDoEvento("Seletiva Nacional Olímpica e Paralímpica 2026").peso, 12);
   assert.equal(pesoDoEvento("TMB Estadual - 8ª Etapa Amazonense-Seletiva").peso, 3); // seletiva dentro de estadual
+  assert.equal(pesoDoEvento("TMB REGIONAL - 14ª Etapa - Liga Nipo Brasileira de Tênis de Mesa").peso, 1);
+  assert.equal(pesoDoEvento("TMB Estadual - 5ª Etapa Ranking - Recife/PE 2026 - SÉRIE OURO").peso, 3);
+  assert.equal(pesoDoEvento("TMB BRASILEIRÃO DE VERÃO INTERCLUBES - BLUMENAU/SC").peso, 18);
+  assert.equal(pesoDoEvento("Copa Brasil Ouro Maceió/AL - 2026").peso, 9);
 });
 
 const consulta = (jogos) => ({

@@ -5,7 +5,7 @@ import { calcularTudo, normalizar, pesoDoEvento } from "./calculo.js";
 
 const CBTM = "https://live.cbtm.org.br/api/local/";
 const UA = "casquinha-ao-vivo/1.0 (pontos de rating; consulta a cada minuto durante eventos)";
-const VERSAO = "2"; // aumente quando mudar a regra de cálculo
+const VERSAO = "4"; // aumente quando mudar a regra de cálculo
 const MAX_CONSULTAS_POR_RODADA = 12;
 const CATALOGO_A_CADA_MIN = 30;
 
@@ -200,6 +200,7 @@ export class Estado extends DurableObject {
     const saldos = {};
     for (const [k, a] of atletas) if (a.saldo) saldos[k] = a.saldo;
     this.setSaida("saldos", saldos);
+    this.setSaida("dias", this.destaquesPorDia(porEvento, new Map(linhas.map((l) => [l.slug, l]))));
     this.setCfg("recalculado_em", Date.now());
     this.setSaida("resumo", {
       oficial_ate: this.oficialAte(),
@@ -207,6 +208,42 @@ export class Estado extends DurableObject {
       atletas_com_jogos: atletas.size,
       jogos: lista.reduce((s, e) => s + e.jogos, 0),
     });
+  }
+
+  // Destaques de cada dia (últimos 10 dias com jogos): quem mais ganhou e perdeu
+  // pontos e as maiores zebras (vitória do atleta de menor rating).
+  destaquesPorDia(porEvento, eventos) {
+    const dias = new Map();
+    for (const { slug, jogos } of porEvento) {
+      const ev = eventos.get(slug);
+      for (const j of jogos) {
+        if (!dias.has(j.dia)) dias.set(j.dia, { atletas: new Map(), zebras: [], jogos: 0, eventos: new Set() });
+        const d = dias.get(j.dia);
+        d.jogos++;
+        d.eventos.add(slug);
+        for (const l of [j.a, j.b]) {
+          const at = d.atletas.get(l.chave) || { chave: l.chave, nome: l.nome, clube: l.clube, pontos: 0, jogos: 0, vitorias: 0, rating_inicio: l.antes, evento: ev?.nome || "" };
+          at.pontos += l.pontos;
+          at.jogos++;
+          if (l.venceu) at.vitorias++;
+          d.atletas.set(l.chave, at);
+        }
+        const [v, p] = j.a.venceu ? [j.a, j.b] : [j.b, j.a];
+        if (v.antes < p.antes) d.zebras.push({ vencedor: v.nome, clube_vencedor: v.clube, chave_vencedor: v.chave, rating_vencedor: v.antes, perdedor: p.nome, rating_perdedor: p.antes, diferenca: p.antes - v.antes, pontos: v.pontos, categoria: j.categoria, fase: j.fase, evento: ev?.nome || "", hora: j.hora });
+      }
+    }
+    const saida = {};
+    for (const dia of [...dias.keys()].sort().slice(-10)) {
+      const d = dias.get(dia);
+      const lista = [...d.atletas.values()];
+      saida[dia] = {
+        jogos: d.jogos, eventos: d.eventos.size, atletas: lista.length,
+        ganhadores: lista.filter((a) => a.pontos > 0).sort((a, b) => b.pontos - a.pontos).slice(0, 30),
+        perdedores: lista.filter((a) => a.pontos < 0).sort((a, b) => a.pontos - b.pontos).slice(0, 10),
+        zebras: d.zebras.sort((a, b) => b.diferenca - a.diferenca).slice(0, 15),
+      };
+    }
+    return saida;
   }
 
   async fetch(req) {
@@ -218,6 +255,12 @@ export class Estado extends DurableObject {
       r.rodada_em = +this.cfg("rodada_em", 0) || null;
       r.recalculado_em = +this.cfg("recalculado_em", 0) || null;
       return json(r);
+    }
+    if (p === "/api/destaques") {
+      const dias = this.saida("dias") || {};
+      const lista = Object.keys(dias).sort();
+      const dia = url.searchParams.get("dia") && dias[url.searchParams.get("dia")] ? url.searchParams.get("dia") : lista.at(-1);
+      return json({ dia: dia || null, dias: lista, ...(dias[dia] || {}) });
     }
     if (p === "/api/saldos") return json({ oficial_ate: this.oficialAte(), saldos: this.saida("saldos") || {} });
     if (p.startsWith("/api/evento/")) {
@@ -258,7 +301,7 @@ export default {
   async fetch(req, env, ctx) {
     if (req.method === "OPTIONS") return new Response(null, { headers: { "access-control-allow-origin": "*", "access-control-allow-methods": "GET" } });
     const url = new URL(req.url);
-    if (url.pathname === "/" ) return json({ servico: "CASQUINHA · pontos ao vivo", rotas: ["/api/resumo", "/api/saldos", "/api/evento/{slug}", "/api/atletas?q=", "/api/atleta/{chave}"] });
+    if (url.pathname === "/" ) return json({ servico: "CASQUINHA · pontos ao vivo", rotas: ["/api/resumo", "/api/destaques?dia=AAAA-MM-DD", "/api/saldos", "/api/evento/{slug}", "/api/atletas?q=", "/api/atleta/{chave}"] });
     if (!url.pathname.startsWith("/api/")) return json({ erro: "rota não encontrada" }, 404);
     // cache de 30 s na borda: protege a CBTM e o Durable Object de acessos repetidos
     const cache = caches.default;
